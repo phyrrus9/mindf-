@@ -38,6 +38,12 @@
 #define OP_IN_CONS_C    10
 #define OP_FOR_LOOP     11
 #define OP_CONTINUE     12
+#define COMMENT_NO_OP   13
+#define COMMENT_ERROR   14
+#define OP_SETJMP       15
+#define OP_SPECIAL      16
+#define OP_GO_JMP       17
+#define OP_JMP_IF_END   18
 
 #define SUCCESS         0
 #define FAILURE         1
@@ -46,6 +52,7 @@
 #define STACK_SIZE      512
 #define DATA_SIZE       65535
 
+//define some stack options and commands
 #define STACK_PUSH(A)   (STACK[SP++] = A)
 #define STACK_POP()     (STACK[--SP])
 #define STACK_EMPTY()   (SP == 0)
@@ -56,29 +63,48 @@ struct instruction_t {
     unsigned short operand;
 };
 
+static unsigned char compile = 0;
+static unsigned char execute = 0;
+static unsigned short prog_end = 0;
+
+//define program containers (and stacks)
 static struct instruction_t PROGRAM[PROGRAM_SIZE];
 static unsigned short STACK[STACK_SIZE];
+static unsigned int JUMPS[STACK_SIZE];
+static unsigned int IN_CONS[STACK_SIZE];
 static unsigned int SP = 0;
+static unsigned int JP = 0;
+static unsigned int JC = 0;
+static unsigned int CP = 0;
+static unsigned int CC = 0;
 
 unsigned short data[DATA_SIZE];
 
-static unsigned int IN_CONS[DATA_SIZE];
 static unsigned int LOOP_LOC[DATA_SIZE / 2];
 static unsigned int LOOP_LIMIT[DATA_SIZE / 2];
 static unsigned char IN_CONS_C[DATA_SIZE];
-static unsigned short IN_CONS_COUNT = 0;
-static unsigned short IN_CONS_POS = 0;
-static unsigned short IN_CONS_C_COUNT = 0;
-static unsigned short IN_CONS_C_POS = 0;
 static unsigned short LOOP_COUNT = 0;
 static unsigned short LOOP_POS = 0;
+
+static int JMP_TEST_VAL = 0;
+static int GO_TO_X = 0;
+
+void stack_reverse(unsigned int *LIST, unsigned int LIST_SIZE) {
+    int i, j;
+    unsigned int *tmp = (unsigned int *)malloc(LIST_SIZE);
+    for (i = 0, j = LIST_SIZE; i < LIST_SIZE; i++, j--) {
+        tmp[i] = LIST[j];
+    }
+    free(LIST);
+    LIST = tmp;
+}
 
 int compile_bf(FILE* fp) {
     unsigned short pc = 0, jmp_pc, loop_pc;
     int c, tc;
     while ((c = getc(fp)) != EOF && pc < PROGRAM_SIZE) {
         switch (c) {
-            case ' ': break; //ignore whitespace
+            //case ' ': break; //ignore whitespace
             case '>': PROGRAM[pc].operator = OP_INC_DP; break;
             case '<': PROGRAM[pc].operator = OP_DEC_DP; break;
             case '+': PROGRAM[pc].operator = OP_INC_VAL; break;
@@ -87,15 +113,13 @@ int compile_bf(FILE* fp) {
             case ',': PROGRAM[pc].operator = OP_IN; break;
             case '=':
                 PROGRAM[pc].operator = OP_IN_CONS;
-                fscanf(fp, "%d", &IN_CONS[IN_CONS_COUNT]);
-                //printf("Read constant: %d\n", IN_CONS);
-                IN_CONS_C_COUNT++;
+                fscanf(fp, "%d", &tc);
+                IN_CONS[CC++] = tc;
                 break;
             case '@':
                 PROGRAM[pc].operator = OP_IN_CONS_C;
-                IN_CONS_C[IN_CONS_C_COUNT] = getc(fp);
-                //printf("Read constant char: %c\n", IN_CONS_C);
-                IN_CONS_C_COUNT++;
+                tc = getc(fp);
+                IN_CONS[CC++] = tc;
                 break;
             case '[':
                 PROGRAM[pc].operator = OP_JMP_FWD;
@@ -103,6 +127,14 @@ int compile_bf(FILE* fp) {
                     return FAILURE;
                 }
                 STACK_PUSH(pc);
+                break;
+            case '}':
+                if ( STACK_EMPTY() ) {
+                    printf("stack empty\n");
+                    return FAILURE;
+                }
+                PROGRAM[pc].operator = OP_JMP_IF_END;
+                jmp_pc = STACK_POP();
                 break;
             case ']':
                 if (STACK_EMPTY()) {
@@ -132,10 +164,35 @@ int compile_bf(FILE* fp) {
                 PROGRAM[loop_pc].operand = pc;
                 break;
             case '/':
+                PROGRAM[pc].operator = COMMENT_ERROR;
                 if (getc(fp) == '/')
                 {
+                    pc--;
+                    PROGRAM[pc].operator = COMMENT_NO_OP;
                     while (getc(fp) != '\n') { }
                 }
+                break;
+            case '$':
+                PROGRAM[pc].operator = OP_SETJMP;
+                fscanf(fp, "%d", &tc);
+                JUMPS[JC++] = tc;
+                break;
+            case 'S':
+                fscanf(fp, "%c", (char *)&tc);
+                switch (tc) {
+                    case '0':
+                        tc = '\0';
+                        break;
+                    case 'n':
+                        tc = '\n';
+                        break;
+                    default: break;
+                }
+                IN_CONS[CC++] = tc;
+                PROGRAM[pc].operator = OP_SPECIAL;
+                break;
+            case 'H':
+                PROGRAM[pc].operator = OP_GO_JMP;
                 break;
             default: pc--; break;
         }
@@ -145,6 +202,7 @@ int compile_bf(FILE* fp) {
         return FAILURE;
     }
     PROGRAM[pc].operator = OP_END;
+    prog_end = pc;
     return SUCCESS;
 }
 
@@ -160,11 +218,19 @@ int execute_bf() {
             case OP_INC_VAL: data[ptr]++; break;
             case OP_DEC_VAL: data[ptr]--; break;
             case OP_OUT: putchar(data[ptr]); break;
-            case OP_IN: data[ptr] = (unsigned int)getchar(); break;
-            case OP_JMP_FWD: if(!data[ptr]) { pc = PROGRAM[pc].operand; } break;
-            case OP_JMP_BCK: if(data[ptr]) { pc = PROGRAM[pc].operand; } break;
-            case OP_IN_CONS: data[ptr] = IN_CONS[IN_CONS_POS]; IN_CONS_POS++; break;
-            case OP_IN_CONS_C: data[ptr] = IN_CONS_C[IN_CONS_C_POS]; IN_CONS_C_POS++; break;
+            case OP_IN: data[ptr] = (unsigned short)getchar(); break;
+            case OP_JMP_FWD: if(data[ptr] == JMP_TEST_VAL) { pc = PROGRAM[pc].operand; } break;
+            case OP_JMP_BCK: if(data[ptr] != JMP_TEST_VAL) { pc = PROGRAM[pc].operand; } break;
+            case OP_JMP_IF_END: break;
+            case OP_IN_CONS:
+            case OP_SPECIAL:
+            case OP_IN_CONS_C: data[ptr] = IN_CONS[CP++]; break;
+            case OP_GO_JMP: ptr = 0; break;
+            case OP_SETJMP:
+                JMP_TEST_VAL = JUMPS[JP++];
+                break;
+            case COMMENT_NO_OP: break;
+            case COMMENT_ERROR: return FAILURE;
             case OP_FOR_LOOP:
                 if (data[LOOP_LOC[LOOP_POS]] < LOOP_LIMIT[LOOP_POS]) {
                     data[LOOP_LOC[LOOP_POS]]++;
@@ -188,15 +254,77 @@ int execute_bf() {
 
 int main(int argc, const char * argv[])
 {
-    int status;
+    int status, i;
     FILE *fp;
-    if (argc != 2 || (fp = fopen(argv[1], "r")) == NULL) {
+    if (argc != 2 && argc != 3) {
         fprintf(stderr, "Usage: %s filename\n", argv[0]);
         return FAILURE;
     }
+    else if (argc == 3) {
+        if (argv[1][0] == 'c') {
+            compile = 1;
+        }
+        if (argv[1][0] == 'e') {
+            execute = 1;
+        }
+        fp = fopen(argv[2], "r");
+    }
+    else {
+        fp = fopen(argv[1], "r");
+    }
     memset(data, 0, DATA_SIZE);
-    status = compile_bf(fp);
+    memset(JUMPS, 0, STACK_SIZE);
+    if(execute == 0) {
+        status = compile_bf(fp);
+    }
     fclose(fp);
+    if (compile == 1 && execute == 0) {
+        fp = fopen("out.mp", "wb");
+        for (i = 0; i < prog_end; i++) {
+            fprintf(fp, "%c", (char)PROGRAM[i].operator);
+            switch (PROGRAM[i].operator)
+            {
+                case OP_JMP_FWD:
+                case OP_JMP_BCK:
+                    fprintf(fp, "%c", (char)PROGRAM[i].operand);
+                    break;
+                case OP_IN_CONS:
+                case OP_SPECIAL:
+                case OP_IN_CONS_C:
+                    fprintf(fp, "%c", (char)IN_CONS[CP++]);
+                    break;
+                case OP_SETJMP:
+                    fprintf(fp, "%c", (char)JUMPS[JP++]);
+                    break;
+            }
+        }
+        fclose(fp);
+        return 0;
+    }
+    if (compile == 0 && execute == 1) {
+        i = 0;
+        fp = fopen(argv[2], "rb");
+        while ( fscanf(fp, "%c", (char *)&PROGRAM[i].operator) != EOF) {
+            switch (PROGRAM[i].operator)
+            {
+                case OP_JMP_FWD:
+                case OP_JMP_BCK:
+                    fscanf(fp, "%c", (char *)&PROGRAM[i].operand);
+                    break;
+                case OP_IN_CONS:
+                case OP_SPECIAL:
+                case OP_IN_CONS_C:
+                    fscanf(fp, "%c", (char *)&IN_CONS[CC++]);
+                    break;
+                case OP_SETJMP:
+                    fscanf(fp, "%c", (char *)&JUMPS[CC++]);
+                    break;
+            }
+            prog_end = i;
+            i++;
+        }
+        status = SUCCESS;
+    }
     if (status == SUCCESS) {
         status = execute_bf();
     }

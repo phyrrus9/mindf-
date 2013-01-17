@@ -1,0 +1,23 @@
+How to program using mindf+:
+
+This language uses the EXACT syntax that brainfuck uses, with the following differences:
+
+additions:
+	} to end a [ ] loop (makes it an if statement)
+	$x to modify the condition (x is the new value, default is 0)
+	=x to set a constant integer (x is the value)
+	@x to set a constant ascii character (x is the value)
+	Sx to set a special character (x is the char) [n = \n; 0 = \0]
+	H to set ptr to 0 (go home)
+inherited from brainfuck:
+	[ code ] code is executed as long as the current pointer is not the condition (see $ above) this is a loop
+	. print the byte to the screen
+	, read a byte
+	+ increment the byte
+	- decrement the byte
+	> move right
+	< move left
+usage:
+	./m+ <opt> <file>
+	<opt> is optional, c=compile <file> to out.mp e=execute <file>
+	<file> is mandatory, if no options are specified, it is compiled and executed
