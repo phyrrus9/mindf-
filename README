@@ -9,6 +9,8 @@ additions:
 	@x to set a constant ascii character (x is the value)
 	Sx to set a special character (x is the char) [n = \n; 0 = \0]
 	H to set ptr to 0 (go home)
+	B blank the memory bank (reset to 0)
+	Cx call function x, see section on functions below
 inherited from brainfuck:
 	[ code ] code is executed as long as the current pointer is not the condition (see $ above) this is a loop
 	. print the byte to the screen
@@ -21,3 +23,11 @@ usage:
 	./m+ <opt> <file>
 	<opt> is optional, c=compile <file> to out.mp e=execute <file>
 	<file> is mandatory, if no options are specified, it is compiled and executed
+
+FUNCTIONS:
+	When creating a function, you may use any code (including any function calls) that are compilable
+to call your function, you MUST have it compiled and saved as x.mp where x is the function number. In any
+program or function, simply add Cx to your code. Note that all memory will be transferred to the function,
+so if you rely on a fresh bank, run a simple loop to blank out the memory (it is only a copy and no changes
+affect the main program). To blank your memory, simply add B anywhere in your program. NOTE, blanking is
+done at runtime, not compiletime, therefore any memory may be destroyed.
