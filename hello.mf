@@ -1,3 +1,6 @@
+simple hello world program that is found on brainfuck's
+wikipedia webpage' with one modification' the first line
+has been simplified with the constant operator
 =10
 [
 	> +++++ ++

@@ -1,0 +1,12 @@
+this program will continuously ask for input until you press the
+enter key then it will print back what you typed in' backwards
+$10		set the comparison value to 10 (enter character)
+[
+	>,	move to the next pointer and read a byte note that
+]		pointer 0 remains a value of 0
+$0		set the comparison value back to 0
+[
+	<.	move back one and print a value (in reverse order)
+]
++++++ +++++	set the value to 10 (endline)
+.		print the endline
