@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MPP_VERSION     5
+#define MPP_VERSION     6
 
 #define OP_END          0
 #define OP_INC_DP       1
@@ -38,16 +38,13 @@
 #define OP_JMP_BCK      8
 #define OP_IN_CONS      9
 #define OP_IN_CONS_C    10
-#define OP_FOR_LOOP     11
-#define OP_CONTINUE     12
-#define COMMENT_NO_OP   13
-#define COMMENT_ERROR   14
-#define OP_SETJMP       15
-#define OP_SPECIAL      16
-#define OP_GO_JMP       17
-#define OP_JMP_IF_END   18
-#define OP_FUNC_CALL    19
-#define OP_MEM_BLK      20
+#define OP_CONTINUE     11
+#define OP_SETJMP       12
+#define OP_SPECIAL      13
+#define OP_GO_JMP       14
+#define OP_JMP_IF_END   15
+#define OP_FUNC_CALL    16
+#define OP_MEM_BLK      17
 
 #define SUCCESS         0
 #define FAILURE         1
@@ -163,33 +160,6 @@ int compile_bf(FILE* fp) {
                 PROGRAM[pc].operand = jmp_pc;
                 PROGRAM[jmp_pc].operand = pc;
                 break;
-            case '#':
-                fscanf(fp, "%d:%d|", &LOOP_LOC[LOOP_COUNT], &LOOP_LIMIT[LOOP_COUNT]);
-                LOOP_COUNT++;
-                PROGRAM[pc].operator = OP_FOR_LOOP;
-                if (STACK_FULL()) {
-                    return FAILURE;
-                }
-                STACK_PUSH(pc);
-                break;
-            case ';':
-                if (STACK_EMPTY()) {
-                    return FAILURE;
-                }
-                loop_pc = STACK_POP();
-                PROGRAM[pc].operator = OP_CONTINUE;
-                PROGRAM[pc].operand = loop_pc;
-                PROGRAM[loop_pc].operand = pc;
-                break;
-            case '/':
-                PROGRAM[pc].operator = COMMENT_ERROR;
-                if (getc(fp) == '/')
-                {
-                    pc--;
-                    PROGRAM[pc].operator = COMMENT_NO_OP;
-                    while (getc(fp) != '\n') { }
-                }
-                break;
             case '$':
                 PROGRAM[pc].operator = OP_SETJMP;
                 fscanf(fp, "%d", &tc);
@@ -256,22 +226,8 @@ int execute_bf() {
             case OP_SETJMP:
                 JMP_TEST_VAL = JUMPS[JP++];
                 break;
-            case COMMENT_NO_OP: break;
-            case COMMENT_ERROR: return FAILURE;
-            case OP_FOR_LOOP:
-                if (data[LOOP_LOC[LOOP_POS]] < LOOP_LIMIT[LOOP_POS]) {
-                    data[LOOP_LOC[LOOP_POS]]++;
-                }
-                break;
-                case OP_CONTINUE:
-                if (data[LOOP_LOC[LOOP_POS]] < LOOP_LIMIT[LOOP_POS]) {
-                    data[LOOP_LOC[LOOP_POS]]++;
-                    pc = PROGRAM[pc].operand;
-                }
-                else {
-                    LOOP_POS++;
-                }
-                break;
+            //case COMMENT_NO_OP: break;
+            //case COMMENT_ERROR: return FAILURE;
             default: return FAILURE;
         }
         pc++;
@@ -304,6 +260,8 @@ int main(int argc, const char * argv[])
                     fscanf(fp, "%c", (char *)&data[i]);
                 }
                 fclose(fp);
+                sprintf(memdumpfname, "rm -rf %d.ms", memdump);
+                system(memdumpfname);
                 //exit(1);
             }
             execute = 1;
